@@ -163,6 +163,7 @@ bool SocketClient::ConnectWithIP()
 		case 0:		// timeout
 			_errorCode = ErrorCode::CONNECT_TIMEOUT;
 			return false;
+			case 
 
 		} 
 		_isConnected = false;		

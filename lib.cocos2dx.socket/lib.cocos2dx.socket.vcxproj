@@ -77,12 +77,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\ln_msg_types.cpp" />
-    <ClCompile Include="src\ln_socket.cpp" />
+    <ClCompile Include="src\SocketPkg.cpp" />
+    <ClCompile Include="src\SocketClient.cpp" />
+    <ClCompile Include="src\SocketBuffer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\ln_msg_types.h" />
-    <ClInclude Include="include\ln_socket.h" />
+    <ClInclude Include="include\SocketPkg.h" />
+    <ClInclude Include="include\SocketClient.h" />
+    <ClInclude Include="include\SocketBuffer.h" />
+    <ClInclude Include="include\SocketConfig.h" />
     <ClInclude Include="include\uncopyable.h" />
   </ItemGroup>
   <ItemGroup>

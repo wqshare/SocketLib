@@ -15,21 +15,30 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\ln_msg_types.cpp">
+    <ClCompile Include="src\SocketBuffer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="src\ln_socket.cpp">
+    <ClCompile Include="src\SocketClient.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SocketPkg.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\ln_msg_types.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
-    <ClInclude Include="include\ln_socket.h">
-      <Filter>头文件</Filter>
-    </ClInclude>
     <ClInclude Include="include\uncopyable.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SocketBuffer.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SocketConfig.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SocketClient.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="include\SocketPkg.h">
       <Filter>头文件</Filter>
     </ClInclude>
   </ItemGroup>
