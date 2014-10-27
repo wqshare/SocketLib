@@ -1,7 +1,7 @@
 #ifndef SOCKETBUFFER_H_
 #define SOCKETBUFFER_H_
 
-#include "stdlib.h";
+#include "stdlib.h"
 #include "memory"
 
 class SocketClientBuffer
@@ -9,6 +9,7 @@ class SocketClientBuffer
 public:
 	SocketClientBuffer();
 	SocketClientBuffer( unsigned int initialSize );
+	SocketClientBuffer( const SocketClientBuffer &);
 	~SocketClientBuffer();
 
 
@@ -18,11 +19,12 @@ public:
 	//return a pointer to the content buffer
 	void *GetContent();
 
-	size_t GetContentLength() { return length_; }
-	size_t GetBufferSize() { return length_; }
+	size_t GetContentLength() { return _length; }
+	size_t GetBufferSize() { return _buff_size; }
 private:
-	char * buf_;
-	size_t length_;
+	char * _buf;
+	size_t _length;
+	size_t _buff_size;
 };
 
 #endif // SOCKETBUFFER_H_

@@ -5,6 +5,8 @@
 #include <WinSock2.h>
 #include <windows.h>
 
+#define CONN_NB_RET	10035
+
 #pragma comment(lib, "ws2_32.lib")
 #endif
 
@@ -19,6 +21,8 @@
 #include <stdlib.h>  
 #include <arpa/inet.h>
 #include <android/log.h>  
+
+#define CONN_NB_RET	EINPROGRESS
 
 #endif
 
@@ -41,14 +45,18 @@ public:
 		NORMAL,
 		CONNECT_SUCCESS,
 		SEND_SUCCESS,
+		SEND_ERROR,
 		RECV_SUCCESS,
+		RECV_ERROR,
 
 		CREATE_SOCKET_FAILED,
 		DNS_FAILED,
 		CONNECT_FAILED,
+		CONNECT_INTERRUPT,
 		SELETE_ERROR,
 
 		SET_NOBLOCK_ERROR,
+		SET_BLOCK_ERROR,
 		SET_SENDTIMEOUT_ERROR,
 		SET_RECVTIMEOUT_ERROR,
 
@@ -90,6 +98,8 @@ public:
 	inline void SetPort(unsigned int port){ _port = port; }
 
 	inline unsigned int GetPort() { return _port; }
+
+	inline ErrorCode GetErrorCode() { return _errorCode; }
 
 	inline bool isConnected() { return _isConnected; }
 

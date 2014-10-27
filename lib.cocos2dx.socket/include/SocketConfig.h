@@ -12,7 +12,9 @@
 #define SOCKET_ERROR	(-1)
 #endif
 
-#define SOCKBUF_DEFAULT_SIZE	1024
+#define SOCKBUF_DEFAULT_SIZE	64
 #define SOCKBUF_MAX_SIZE	8184
+
+#define PKG_HEAD_BYTES	4
 
 #endif // SOCKETCONFIG_H_

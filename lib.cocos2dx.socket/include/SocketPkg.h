@@ -15,6 +15,20 @@ public:
 	virtual void Deserialization( const SocketClientBuffer & _in) = 0;
 };
 
+class TmpPkg : PackageProtocol
+{
+public:
+	virtual SocketClientBuffer Serialize() 
+	{
+		SocketClientBuffer scb(20);
+		scb.SetContent("hello world", sizeof("hello world"));
+		return scb;
+	}
 
+	virtual void Deserialization(const SocketClientBuffer & _in)
+	{
+
+	}
+};
 
 #endif // LN_MSG_TYPES_h_

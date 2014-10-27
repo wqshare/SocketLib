@@ -2,10 +2,19 @@
 #include <assert.h>
 #include <fcntl.h>
 #ifdef ANDROID
-#include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#endif // _WIN32
+#include <errno.h>
+#endif // ANDROID
+
+static int LastError()
+{
+#ifdef _WIN32
+	return WSAGetLastError();
+#else
+	return errno;
+#endif
+}
 
 SocketClient::SocketClient() : 
 	_socket_fd(-1), 
@@ -13,9 +22,12 @@ SocketClient::SocketClient() :
 	_url(""),
 	_ip(""),
 	_isConnected(false),
-	_errorCode(ErrorCode::NORMAL)
+	_errorCode(ErrorCode::NORMAL),
+	_connectTimeout(0),
+	_sendTimeout(0),
+	_recvTimeout(0)
 {
-	
+	init();
 }
 
 SocketClient::SocketClient(unsigned int port,const std::string & url) : 
@@ -24,9 +36,12 @@ SocketClient::SocketClient(unsigned int port,const std::string & url) :
 	_url(url),
 	_ip(""),
 	_isConnected(false),
-	_errorCode(ErrorCode::NORMAL)
+	_errorCode(ErrorCode::NORMAL),
+	_connectTimeout(0),
+	_sendTimeout(0),
+	_recvTimeout(0)
 {
-
+	init();
 }
 
 SocketClient::~SocketClient()
@@ -59,7 +74,7 @@ bool SocketClient::init()
 		_isConnected = false;
 		return false;
 	}	
-	
+
 	return true;
 }
 
@@ -130,7 +145,7 @@ bool SocketClient::ConnectWithIP()
 		_errorCode = ErrorCode::SET_SENDTIMEOUT_ERROR;
 		return false;
 	}
-	if (setsockopt(_socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&recvTimeout, sizeof(recvTimeout)) == 0)	//设置发送超时
+	if (setsockopt(_socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&recvTimeout, sizeof(recvTimeout)) == SOCKET_ERROR)	//设置发送超时
 	{
 		_errorCode = ErrorCode::SET_RECVTIMEOUT_ERROR;
 		return false;
@@ -148,14 +163,16 @@ bool SocketClient::ConnectWithIP()
 	FD_SET(_socket_fd, &wset);
 
 	if (connect(_socket_fd, (sockaddr *)&addr, sizeof(addr)) == SOCKET_ERROR)
-	{
-		if (errno != EINPROGRESS)	// connect返回-1且errno == EINPROGRESS - 正在连接中，否则为出错
+	{	
+
+		if (LastError() != CONN_NB_RET && LastError() != EWOULDBLOCK && LastError() != EAGAIN)	// connect返回-1且errno == EINPROGRESS(ANDROID)\EWOUDBLOCK(WIN32) - 正在连接中，否则为出错
 		{
-			_errorCode = CONNECT_FAILED;
+			perror("app");
+			_errorCode = ErrorCode::CONNECT_FAILED;
 			_isConnected = false;
-			return;
+			return false;
 		}
-		switch (select(_socket_fd + 1, &rset, &wset, NULL, &connTimeout))
+		switch (select(_socket_fd + 1, NULL, &wset, NULL, &connTimeout))
 		{
 		case -1:	// select出错
 			_errorCode = ErrorCode::SELETE_ERROR;
@@ -163,16 +180,48 @@ bool SocketClient::ConnectWithIP()
 		case 0:		// timeout
 			_errorCode = ErrorCode::CONNECT_TIMEOUT;
 			return false;
-			case 
+		case 1:
+			if ( FD_ISSET(_socket_fd, &wset))	//如果fd可读，说明已经建立连接
+			{
+#if defined(_WIN32)
+				unsigned long mode = 0;	// 0 - 阻塞模式; 非0 - 为非阻塞模式
+				if(ioctlsocket(_socket_fd, FIONBIO, &mode) == SOCKET_ERROR)	// 设置回阻塞IO
+				{
+					_errorCode = ErrorCode::SET_BLOCK_ERROR;
+					return false;
+				}
+#elif defined(ANDROID)
+				int flag = fcntl(_socket_fd, F_GETFL, 0);
+				if (flag == SOCKET_ERROR)
+				{
+					_errorCode = ErrorCode::SET_BLOCK_ERROR;
+					return false;
+				}
+				flag ~&= ~O_NONBLOCK;
+				if (fcntl(_socket_fd, F_SETFL, flag) == SOCKET_ERROR)	// 设置回阻塞socket
+				{
+					_errorCode = ErrorCode::SET_BLOCK_ERROR;
+					return false;
+				}
+#endif
+				_isConnected = true;
+				_errorCode = ErrorCode::NORMAL;
+				return true;
+			}
+			else
+			{
+				_isConnected = false;
+				_errorCode = ErrorCode::SELETE_ERROR;
+				return false;
+			}
 
 		} 
-		_isConnected = false;		
 	}
-	else
+	else				// if connect to localhost， then connect no-block return 0
 	{
 		_isConnected = true;
+		return true;
 	}
-	return _isConnected;
 }
 
 
@@ -183,7 +232,7 @@ void SocketClient::Close()
 		closesocket(_socket_fd);
 #endif // _WIN32
 #ifdef ANDROID
-		close(_socket_fd);
+	close(_socket_fd);
 #endif // ANDROID
 
 }
@@ -201,5 +250,125 @@ void SocketClient::SetSendTimeout(float timeout)
 void SocketClient::SetRecvTimeout(float timeout)
 {
 	_recvTimeout = timeout;
+}
+
+bool SocketClient::Send(SocketClientBuffer &src)
+{
+	int n = 0;
+	int ret = 0;
+
+	const char * buff = (const char *)(src.GetContent());
+
+	while(n < src.GetContentLength())
+	{
+		ret = ::send(_socket_fd, buff + n, src.GetContentLength() - n, NULL);
+		if (ret == SOCKET_ERROR)
+		{			 
+			if ((LastError() == EINTR || LastError() == EWOULDBLOCK || LastError() == EAGAIN))	//应当重新发送
+			{
+				continue;
+			}
+			else
+			{
+				_errorCode = ErrorCode::SEND_ERROR;
+				return false;
+			}
+		}
+		else if (ret == 0)	//连接中断
+		{
+			_errorCode = ErrorCode::CONNECT_INTERRUPT;
+			return false;
+		}
+		n += ret;		
+	}
+
+	return true;
+}
+
+// dest中将包括包头
+bool SocketClient::Recv(SocketClientBuffer *dest)
+{
+	if (dest == NULL)
+		return false;
+	int n = 0;
+	int ret = 0;
+	char head[4] = { 0 };
+	char *body = NULL;
+
+again:
+	// 获取包头
+	while (n < 4)
+	{
+		ret = ::recv(_socket_fd, head + n, 4, 0);
+		if (ret == SOCKET_ERROR)
+		{
+			if ((LastError() == EINTR || LastError() == EWOULDBLOCK || LastError() == EAGAIN))	//应当重新接收
+			{
+				continue;
+			}
+			else
+			{
+				_errorCode = ErrorCode::RECV_ERROR;
+				return false;
+			}
+		}
+		else if (ret == 0)	//连接中断
+		{
+			_errorCode = ErrorCode::CONNECT_INTERRUPT;
+			return false;
+		}
+		n += ret;
+	}
+
+	// 获取消息体
+	n = ret = 0;
+	//int pkgLength = *(int *)head;	//debug
+	int pkgLength = ntohl(*(int *)head);
+	body = new char[pkgLength + 5];
+	memset(body, 0, pkgLength + 5);
+	memcpy(body, head, 4);
+
+	while (n < pkgLength)
+	{
+		ret = ::recv(_socket_fd, body + n + 4, pkgLength, 0);
+		if (ret == SOCKET_ERROR)
+		{
+			if ((LastError() == EINTR || LastError() == EWOULDBLOCK || LastError() == EAGAIN))	//应当重新接收
+			{
+				continue;
+			}
+			else
+			{
+				_errorCode = ErrorCode::RECV_ERROR;
+				return false;
+			}
+		}
+		else if (ret == 0)	//连接中断
+		{
+			_errorCode = ErrorCode::CONNECT_INTERRUPT;
+			return false;
+		}
+		n += ret;
+	}
+
+	if (!strcmp(body + 4, "PING"))	//回应心跳检测
+	{
+		struct _data_ {
+			int32_t a;
+			char b[4];
+		} tmp;
+		tmp.a = htonl(4);
+		strncpy(tmp.b, "PONG", 4);
+		ret = send(_socket_fd, (char *)&tmp, 8, 0);
+		delete body;
+		body = NULL;
+		goto again;
+	}
+
+	dest->SetContent(body, pkgLength + 5);	// 长度中包括了包头的4个字节
+	delete body;
+	body = NULL;
+
+	return true;
 }
 
